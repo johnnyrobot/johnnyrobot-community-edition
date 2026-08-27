@@ -1,0 +1,26 @@
+# Caddy for Johnny Robot Community Edition.
+#
+# One site block, one certificate, one origin. The API used to live on a second
+# hostname, which bought nothing but a second certificate and a cross-origin
+# configuration; the private persistence boundary collapses it. PocketBase appears nowhere here — it is
+# private to the Compose network and the browser never learns its address.
+#
+# Caddy obtains and renews the Let's Encrypt certificate and redirects HTTP to
+# HTTPS on its own.
+
+{$APP_DOMAIN} {
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		reverse_proxy frontend:80
+	}
+
+	# 100MB Course Materials, plus headroom for multipart framing.
+	request_body {
+		max_size 110MB
+	}
+
+	encode gzip
+}

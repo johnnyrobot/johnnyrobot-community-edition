@@ -1,0 +1,187 @@
+# Production Docker Compose for VPS deployment with Caddy
+# Use this instead of docker-compose.yml when deploying to a bare VPS
+#
+# PocketBase holds identity and persistence (the private persistence boundary). It binds only to this
+# network and publishes no host port. Its superuser credential is a required
+# variable: a missing value fails `docker compose up` rather than the first
+# Student's login, which is the property the credential mount removed in
+# The private persistence boundary used to provide.
+
+services:
+  pocketbase:
+    build:
+      context: .
+      dockerfile: Dockerfile.pocketbase
+    restart: unless-stopped
+    environment:
+      # Required: interpolation fails the whole `up` when unset.
+      - POCKETBASE_SUPERUSER_EMAIL=${POCKETBASE_SUPERUSER_EMAIL:?set POCKETBASE_SUPERUSER_EMAIL in .env}
+      - POCKETBASE_SUPERUSER_PASSWORD=${POCKETBASE_SUPERUSER_PASSWORD:?set POCKETBASE_SUPERUSER_PASSWORD in .env}
+    volumes:
+      - pb_data:/pb/pb_data
+      - ./pb_migrations:/pb/pb_migrations:ro
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8090/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+    networks:
+      - johnnyrobot-community-edition
+
+  # The graph behind self-hosted Student Memory, and the Course Material graph.
+  #
+  # Private to this network and publishing no host port, exactly like
+  # PocketBase: nothing outside the Compose network has any business speaking
+  # Bolt. the optional graph boundary limits Neo4j Community to local or synthetic single-Library
+  # use, which is what this deployment is.
+  #
+  # Both services below are optional by design. If this container never comes
+  # up, Student Memory degrades to a no-op and the tutor still answers -- see
+  # api/services/student_memory.py.
+  neo4j:
+    image: neo4j:5-community
+    restart: unless-stopped
+    environment:
+      # Required: interpolation fails the whole `up` when unset, so a graph is
+      # never brought up with the image's default credential.
+      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:?set NEO4J_PASSWORD in .env}
+      # mem0's graph memory introspects the schema through langchain-neo4j,
+      # which reaches for APOC procedures.
+      - NEO4J_PLUGINS=["apoc"]
+      # Sized for a demo box shared with five other services rather than for a
+      # graph workload. Community defaults would reserve far more.
+      - NEO4J_server_memory_heap_max__size=512m
+      - NEO4J_server_memory_pagecache_size=256m
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://127.0.0.1:7474/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks:
+      - johnnyrobot-community-edition
+
+  # The vector store behind self-hosted Student Memory. Same posture as Neo4j:
+  # private, optional, and non-fatal when absent.
+  qdrant:
+    image: qdrant/qdrant:latest
+    restart: unless-stopped
+    volumes:
+      - qdrant_data:/qdrant/storage
+    # `/readyz` rather than `/livez`: it reports "all shards are ready", which
+    # is the state that actually matters to a memory client being built, and
+    # The build caches its failure for the life of the process.
+    #
+    # Spoken over bash's /dev/tcp because the image carries no curl, wget, or
+    # nc -- and CMD-SHELL is /bin/sh, which has no /dev/tcp, so bash is named
+    # explicitly.
+    healthcheck:
+      test: ['CMD', 'bash', '-c', 'exec 3<>/dev/tcp/127.0.0.1/6333 && printf "GET /readyz HTTP/1.0\r\n\r\n" >&3 && grep -q "200 OK" <&3']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - johnnyrobot-community-edition
+
+  caddy:
+    image: caddy:alpine
+    restart: unless-stopped
+    environment:
+      - APP_DOMAIN=${APP_DOMAIN:?Set APP_DOMAIN in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - johnnyrobot-community-edition
+    depends_on:
+      - frontend
+      - backend
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - ENVIRONMENT=production
+      - DEBUG=false
+    networks:
+      - johnnyrobot-community-edition
+    # Neo4j waits on health rather than start because Student Memory is built
+    # once and its failure is cached for the life of the process (see
+    # api/services/student_memory.py). A backend that came up while Bolt was
+    # still refusing connections would remember nothing until restarted -- a
+    # far worse failure than waiting forty seconds here.
+    #
+    # This is startup ordering, not a hard dependency: once running, either
+    # store going away costs remembering, never answering.
+    depends_on:
+      pocketbase:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    # Kept, so a transient LiveKit outage heals without an operator. `on-failure`
+    # is a trap here: the worker exits 0 even when it has failed, so Docker
+    # reads a dead agent as a clean shutdown and never restarts it (measured:
+    # `Exited (0)`, `RestartCount=0`). Reporting the failure is the
+    # healthcheck's job -- see Dockerfile.agent.
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - ENVIRONMENT=production
+      - DEBUG=false
+    networks:
+      - johnnyrobot-community-edition
+    # Same reasoning as the backend: the agent is a separate process and warms
+    # its own Student Memory client on the first Tutor Session.
+    depends_on:
+      backend:
+        condition: service_started
+      pocketbase:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Same origin: Caddy routes /api/* to the backend on this hostname.
+        - VITE_API_URL=/api/v1
+    restart: unless-stopped
+    networks:
+      - johnnyrobot-community-edition
+    depends_on:
+      - backend
+
+networks:
+  johnnyrobot-community-edition:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
+  pb_data:
+  neo4j_data:
+  qdrant_data:

@@ -1,0 +1,61 @@
+# LiveKit Agents (Voice Agent Core)
+# All LiveKit packages must use synchronized versions to avoid import errors
+livekit-agents>=1.6.0,<2.0.0
+livekit-plugins-google>=1.6.0,<2.0.0
+livekit-plugins-openai>=1.2.0,<2.0.0
+livekit-plugins-silero>=1.2.0,<2.0.0
+livekit-api>=1.0.5,<2.0.0
+
+# FastAPI Backend
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+email-validator>=2.0.0  # Required for Pydantic EmailStr validation
+
+# Database & Auth
+# Firebase has been removed (the private persistence boundary). PocketBase is reached over its HTTP
+# API using httpx, listed below; it has no official Python SDK.
+cryptography>=42.0.0  # Canvas token encryption (the reset-only demo profile)
+
+# AI & Memory
+# Known, accepted conflict: mem0ai 0.1.x declares openai<1.110.0, which cannot
+# be satisfied alongside livekit-agents' openai>=2 -- the ranges do not overlap,
+# and the mem0ai release that supports openai>=2 is a major-version jump (0.1.x
+# -> 2.x) with real API-compatibility risk. openai stays on the version
+# livekit-agents needs, since voice is the active, non-optional path. Student
+# Memory is optional: if mem0ai's internal openai usage ever breaks at
+# runtime, chat and voice still work, they just do not remember.
+mem0ai>=0.0.1,<1.0.0
+# Self-hosted Student Memory (MEM0_SELF_HOSTED). mem0ai does not pull these in
+# itself -- its OSS graph memory imports them only when a graph_store is
+# configured, so without them a self-hosted deployment fails at build time and
+# degrades to the no-op. `qdrant-client` already arrives with mem0ai.
+neo4j>=5.0
+langchain-neo4j>=0.4.0
+rank-bm25>=0.2.2
+google-generativeai>=0.3.0,<1.0.0
+google-genai>=0.2.0  # New GenAI SDK for File Search
+openai>=2.0.0,<3.0.0  # floor set by livekit-agents>=1.6.0 (openai>=2,<3)
+
+# Tools & Utilities
+duckduckgo-search>=5.0.0,<7.0.0
+langchain-community>=0.2.0,<0.4.0
+requests>=2.31.0,<3.0.0
+python-dotenv>=1.0.0,<2.0.0
+aiohttp>=3.9.0,<4.0.0
+httpx>=0.27.0,<1.0.0
+
+# Security
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+httpx>=0.25.0
+
+# MCP Support
+pydantic-ai-slim[openai,mcp]>=0.0.14,<1.0.0
+
+# Browser Automation (E2E Testing)
+playwright>=1.40,<2

@@ -1,0 +1,27 @@
+# Caddy for local development. Never used on the deployed machine.
+#
+# http://localhost is a browser secure context, so the microphone permission a
+# voice Tutor Session needs works with no certificate. The explicit http://
+# scheme also tells Caddy not to attempt ACME, which could not issue a
+# certificate for localhost anyway.
+#
+# Same /api/* split as the real Caddyfile, so the single-origin shape being
+# deployed is the shape being tested here. PocketBase appears nowhere, exactly
+# as in production — it stays private to the Compose network.
+
+http://localhost {
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		reverse_proxy frontend:80
+	}
+
+	# 100MB Course Materials, plus headroom for multipart framing.
+	request_body {
+		max_size 110MB
+	}
+
+	encode gzip
+}

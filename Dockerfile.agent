@@ -1,0 +1,78 @@
+# Multi-stage build for LiveKit agent
+FROM python:3.11-slim as builder
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Production stage
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user first
+RUN useradd -m -u 1000 appuser
+
+# Copy Python packages from builder to appuser's home
+COPY --from=builder /root/.local /home/appuser/.local
+
+# Make sure scripts in .local are usable
+ENV PATH=/home/appuser/.local/bin:$PATH
+
+# Copy application code
+COPY agent.py .
+COPY tools.py .
+COPY prompts.py .
+COPY agent_context.py .
+COPY language_tools.py .
+COPY canvas_tools.py .
+COPY agent_health.py .
+COPY api/ ./api/
+
+# Fix ownership of everything
+RUN chown -R appuser:appuser /app /home/appuser/.local
+
+USER appuser
+
+# The LiveKit worker's HTTP server. This said 8080 for a long time and nothing
+# has ever listened there -- inside the container 8080 refuses the connection
+# and 8081 answers -- so the one port a healthcheck or metrics scrape would
+# aim at was the one port that was wrong.
+EXPOSE 8081
+
+# Say whether the agent works.
+#
+# `restart: unless-stopped` guarantees this container comes back; it does not
+# report that it keeps dying. Without a healthcheck, an agent that never once
+# registered with LiveKit shows up as "Up" for as long as anyone cares to look,
+# which is how a voice tutor stays broken quietly.
+#
+# This asks whether LiveKit is reachable with these credentials rather than
+# whether the process is alive. Liveness is the obvious check and it does not
+# work: the worker retries sixteen times over roughly two and a half minutes
+# with its HTTP server answering throughout, so a liveness check reports
+# healthy for the whole failure. See agent_health.py for what this can and
+# cannot see.
+#
+# 15s x 3 decides health inside a minute, and three retries keep a single slow
+# round trip to LiveKit from flapping the container.
+HEALTHCHECK --interval=15s --timeout=10s --start-period=30s --retries=3 \
+    CMD python agent_health.py || exit 1
+
+# Run LiveKit agent in production mode
+CMD ["python", "agent.py", "start"]

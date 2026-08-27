@@ -1,0 +1,7 @@
+Smoke Material
+
+This file exists so the smoke harness has something to upload. It is uploaded
+and then removed on every run, so nothing here is ever read by a tutor and
+nothing here should matter.
+
+Photosynthesis converts light energy into chemical energy stored as glucose.

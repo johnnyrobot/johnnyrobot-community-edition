@@ -1,0 +1,76 @@
+# Environment files
+.env
+.env.local
+.env.*.local
+service-account.json
+secrets/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Non-runtime text
+*.md
+LICENSE
+
+# Tests
+tests/
+.pytest_cache/
+pytest.ini
+
+# Frontend (exclude from backend image)
+frontend/
+
+# Scripts
+scripts/
+
+# Development files
+KMS/
+.claude/
+cleanup_mem0.py
+apply_migration.py
+
+# Node modules (if any in root)
+node_modules/

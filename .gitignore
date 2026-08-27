@@ -1,0 +1,83 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environments (venv)
+venv/
+.venv/
+env/
+ENV/
+
+# Conda Environments
+.conda/
+conda-meta/
+
+# Package files
+*.egg-info/
+dist/
+build/
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Local agent instructions and tool state
+AGENTS.md
+agents.md
+CLAUDE.md
+claude.md
+**/AGENTS.md
+**/agents.md
+**/CLAUDE.md
+**/claude.md
+.agents/
+.claude/
+.codex/
+.gemini/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+
+# Database
+*.db
+*.sqlite
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/dist/
+
+# BMAD-METHOD (if not needed in repo)
+BMAD-METHOD/node_modules/
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+~*
+
+# Docker
+docker-compose.override.yml
+.env.production
+
+# Sensitive files
+/service-account.json
+/secrets/
+#*.json.key

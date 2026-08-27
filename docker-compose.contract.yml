@@ -1,0 +1,10 @@
+# Publishes PocketBase on the host, loopback only. Two legitimate uses: the
+# opt-in live contract test and the administrative provisioning/reset tools.
+# Both need a way to reach PocketBase from the host because the deployed stack
+# otherwise publishes no PocketBase port.
+# Never leave this published on the deployed machine: attach it only for as
+# long as the operation takes, then drop it again.
+services:
+  pocketbase:
+    ports:
+      - "127.0.0.1:8090:8090"

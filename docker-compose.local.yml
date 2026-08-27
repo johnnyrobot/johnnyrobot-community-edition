@@ -1,0 +1,49 @@
+# Local development override for docker-compose.prod.yml.
+# Never use this file on the deployed machine.
+#
+# Serves http://localhost through Caddy with no ACME, keeping the same /api/*
+# routing as production, so the single-origin shape being deployed is the shape
+# being tested locally. PocketBase still publishes no host port here.
+#
+# Copy .env.local.example to .env first -- every service already reads .env,
+# there is no separate local env file to wire up.
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml -f docker-compose.local.yml up -d --build
+
+services:
+  caddy:
+    # Replaces the base file's ./Caddyfile mount: Compose merges volume lists
+    # by container path, and both entries target /etc/caddy/Caddyfile.
+    volumes:
+      - ./Caddyfile.local:/etc/caddy/Caddyfile
+    # No 443 locally: nothing terminates TLS without a certificate, and binding
+    # an unused privileged port only invites a collision with whatever else on
+    # The laptop wants it. `!override` is needed because Compose otherwise
+    # unions port lists and 443 would survive; it requires Compose 2.24+, which
+    # `docker compose version` will tell you.
+    ports: !override
+      - "80:80"
+
+  # The deployed stack is production; a laptop is not. The base file pins these
+  # two on the backend and agent, so the override has to name them again.
+  backend:
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=true
+
+  agent:
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=true
+
+  # The Neo4j Browser, on loopback only.
+  #
+  # Not for the application, which reaches Bolt over the Compose network -- this
+  # is for looking at the graph while building against it, and for showing it
+  # during a demo. Loopback only, like docker-compose.contract.yml's PocketBase
+  # publish: operator tooling, never the browser's path into the product.
+  neo4j:
+    ports:
+      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:7687:7687"
